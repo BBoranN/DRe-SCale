@@ -1,5 +1,6 @@
 from datetime import datetime
 import time as time
+import setting
 import math
 import json as json
 import numpy as np
@@ -18,7 +19,7 @@ namespace = 'openfaas-fn'
 scale_api = client.AppsV1Api()
 resource_usage_api = client.CustomObjectsApi()
 # FIX 1: Removed double 'prom = prom =' typo
-prom = PrometheusConnect(url='http://127.0.0.1:9090', disable_ssl=True)
+prom = PrometheusConnect(url=setting.ppo_lstm_test_agent_prometheus_url, disable_ssl=True)
 
 
 class Environment(gym.Env):

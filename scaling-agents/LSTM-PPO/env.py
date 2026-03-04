@@ -1,5 +1,6 @@
 from datetime import datetime
 import time as time
+import setting
 import math
 import json as json
 import numpy as np
@@ -17,7 +18,7 @@ deployment_name = 'matmul' # deployment name for deployed function
 namespace = 'openfaas-fn' # default namespace for openfaas functions
 scale_api = client.AppsV1Api()
 resource_usage_api = client.CustomObjectsApi()
-prom = PrometheusConnect(url='http://127.0.0.1:9090', disable_ssl=True)
+prom = PrometheusConnect(url=setting.ppo_lstm_agent_prometheus_url, disable_ssl=True)
 
 
 class Environment(gym.Env):

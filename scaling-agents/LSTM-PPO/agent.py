@@ -1,11 +1,12 @@
 import os
+import setting
 from env import Environment as env
 from sb3_contrib import RecurrentPPO
 
 
-logdir = 'logs'
+logdir = setting.ppo_lstm_agent_log_dir
 en = env()
-models_dir = "models/PPO_LSTM_Run3"
+models_dir = setting.ppo_lstm_agent_models_dir
 
 # Utility to create directories
 if not os.path.exists(models_dir):
