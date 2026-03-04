@@ -13,8 +13,12 @@ def matmul(n):
     return latency
 
 # openfaas event handler function
-def handle(event):
+def handle(event, context):
     input = [10, 100, 1000]
     n = random.randint(0, 2)
+    
+    # Calculate latency
     result = matmul(input[n])
-    return result
+    
+    # Return as a string to ensure valid HTTP response body
+    return str(result)

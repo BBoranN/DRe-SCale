@@ -6,6 +6,7 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import tensorflow as tf
+tf.config.set_visible_devices([], 'GPU')
 
 from kubernetes import client, config
 from prometheus_api_client import PrometheusConnect
@@ -16,7 +17,7 @@ deployment_name = 'matmul' # deployment name for deployed function
 namespace = 'openfaas-fn' # default namespace for openfaas functions
 scale_api = client.AppsV1Api()
 resource_usage_api = client.CustomObjectsApi()
-prom = PrometheusConnect(url='${PROMETHEUS_URL}', disable_ssl=True)
+prom = PrometheusConnect(url='http://127.0.0.1:9090', disable_ssl=True)
 
 
 class Environment(gym.Env):
@@ -68,10 +69,10 @@ class Environment(gym.Env):
 
         # custom metrics from env
         logdir = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.file_writer = tf.summary.create_file_writer(logdir + "/${MODEL_NAME}")
+        self.file_writer = tf.summary.create_file_writer(logdir + "/${PPO_LSTM_Run2}")
         self.file_writer.set_as_default() 
 
-        self._reward_file = 'reward_history_${MODEL_NAME}.json'
+        self._reward_file = 'reward_history_PPO_LSTM_Run3.json'
 
     def _get_info(self):
         return {}
@@ -149,15 +150,25 @@ class Environment(gym.Env):
         except Exception as e:
             avg_execution = 0.0
 
-        try:
+        """ try:
             # can be obtained from gateway_service_count
             query3 = "kube_deployment_status_replicas_ready{deployment='matmul'}"
             data = prom.custom_query(query=query3)
             replicas = int(float(data[0]['value'][1]))
         except Exception as e:
             replicas = 0
-            print(e)
+            print(e) """
 
+        try:
+            # Use K8s API directly (Much more reliable!)
+            deploy = scale_api.read_namespaced_deployment(name=deployment_name, namespace=namespace)
+            if deploy.status.ready_replicas is not None:
+                replicas = deploy.status.ready_replicas
+            else:
+                replicas = 0 # It returns None if 0 replicas are ready
+        except Exception as e:
+            replicas = 0
+            print(f"Error reading replicas: {e}")
 
         try:
             # total requests during the period

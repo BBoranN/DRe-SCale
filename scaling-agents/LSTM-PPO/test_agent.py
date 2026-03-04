@@ -7,7 +7,7 @@ import tensorflow as tf
 
 logdir = 'logs/evaluation/'
 en = env()
-models_dir = "models/evaluation/${MODEL_NAME}"
+models_dir = "models/evaluation/PPO_LSTM_Run3"
 
 # Utility to create directories
 if not os.path.exists(models_dir):
@@ -17,12 +17,12 @@ if not os.path.exists(logdir):
 
 
 # Load the model
-model = RecurrentPPO.load(path='models/${MODEL_NAME}/${MODEL}.zip',
+model = RecurrentPPO.load(path='models/PPO_LSTM_Run3/480.zip',
                           env=en,
                           custom_objects={'clip_range': 0.2,'lr_schedule': 1})
 
 
-episodes = 500
+episodes = 20
 rewards_history = []
 avg_score = 0
 _states = None # Necessary step for LSTM integration

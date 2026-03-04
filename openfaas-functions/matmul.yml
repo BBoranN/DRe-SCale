@@ -1,12 +1,17 @@
 version: 1.0
 provider:
   name: openfaas
-  gateway: $OPENFAAS_GATEWAY
+  gateway: http://127.0.0.1:8080
 functions:
   matmul:
-    lang: python3
+    lang: python3-http
     handler: ./matmul
-    image: $USERID/$IMAGE_NAME:$TAG
+    
+    image: bborann/matmul:latest
+    
+    labels:
+      com.openfaas.scale.min: "1"
+      com.openfaas.scale.max: "24"
     limits:
       memory: 256Mi
       cpu: 150m

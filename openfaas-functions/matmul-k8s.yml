@@ -1,0 +1,23 @@
+---
+apiVersion: openfaas.com/v1
+kind: Function
+metadata:
+  name: matmul
+  namespace: openfaas-fn
+spec:
+  name: matmul
+  image: bborann/matmul:latest
+  environment:
+    exec_timeout: 10s
+    read_timeout: 10s
+    write_timeout: 10s
+  labels:
+    com.openfaas.scale.max: "24"
+    com.openfaas.scale.min: "1"
+  limits:
+    memory: 256Mi
+    cpu: 150m
+  requests:
+    memory: 256Mi
+    cpu: 150m
+
