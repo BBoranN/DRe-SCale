@@ -35,7 +35,7 @@ print(f"Starting workload generator targeting: {FUNCTION_URL}")
 print("Press Ctrl+C to stop...")
 
 # running for longer period of time to simulate > 14 days
-for _ in range(20):
+for _ in range(100):
     for i in d: # number of requests per time interval i.e. 30 seconds
         total_time = 30
         try:

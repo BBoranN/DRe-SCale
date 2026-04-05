@@ -18,12 +18,12 @@ if not os.path.exists(logdir):
 
 
 # Load the model
-model = RecurrentPPO.load(path='models/PPO_LSTM_Run3/480.zip',
+model = RecurrentPPO.load(path='models/PPO_LSTM_Run3_cpu/6000.zip',
                           env=en,
                           custom_objects={'clip_range': 0.2,'lr_schedule': 1})
 
 
-episodes = 20
+episodes = 500
 rewards_history = []
 avg_score = 0
 _states = None # Necessary step for LSTM integration

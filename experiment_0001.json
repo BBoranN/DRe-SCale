@@ -1,0 +1,9 @@
+{
+    "experimentName": "PPO_LSTM_Run3_cpu",
+    "logFileName": "PPO_LSTM_Run3_cpu",
+    "rewardFileName": "reward_history_PPO_LSTM_Run3_cpu",
+    "testAgentPath": "models/PPO_LSTM_Run3_cpu/6000.zip",
+    "testEnvironmentModelName":"PPO_LSTM_Run3_cpu",
+    "ppo_lstm_agent_models_dir": "models/PPO_LSTM_Run3_cpu",
+    "ppo_lstm_test_agent_models_dir": "models/evaluation/PPO_LSTM_Run3_cpu"
+}

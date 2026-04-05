@@ -1,8 +1,8 @@
+import math
 from datetime import datetime
 import time as time
-import setting
-import math
 import json as json
+import setting
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
@@ -70,10 +70,10 @@ class Environment(gym.Env):
 
         # custom metrics from env
         logdir = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.file_writer = tf.summary.create_file_writer(logdir + "/${PPO_LSTM_Run2}")
+        self.file_writer = tf.summary.create_file_writer(logdir + "/${PPO_LSTM_Run3_cpu}")
         self.file_writer.set_as_default() 
 
-        self._reward_file = 'reward_history_PPO_LSTM_Run3.json'
+        self._reward_file = 'reward_history_PPO_LSTM_Run3_cpu.json'
 
     def _get_info(self):
         return {}
@@ -136,117 +136,114 @@ class Environment(gym.Env):
         return info
 
     def _get_obs(self):
-        obs = None
+        # Initialize default values to avoid UnboundLocalError
+        avg_execution = 0.0
+        replicas = 0
+        requests = 0
+        throughput = 100
+        avg_cpu = 0.0
+        avg_mem = 0.0
 
-        # get the avg execution time
-        query1 = "(rate(gateway_functions_seconds_sum{function_name='matmul.openfaas-fn',\
-              code='200'}[30s]) / \
-                rate(gateway_functions_seconds_count{function_name='matmul.openfaas-fn',\
-                      code='200'}[30s]))"
-       
+        # 1. Get the avg execution time
+        query1 = f"(rate(gateway_functions_seconds_sum{{function_name='{deployment_name}.{namespace}', code='200'}}[30s]) / rate(gateway_functions_seconds_count{{function_name='{deployment_name}.{namespace}', code='200'}}[30s]))"
         try:
             data = prom.custom_query(query=query1)
-            avg_execution = round(float((data[0]['value'][1])), 3)
-            avg_execution = {True:0, False: avg_execution}[math.isnan(avg_execution)]
+            if data and 'value' in data[0] and len(data[0]['value']) > 1:
+                val = float(data[0]['value'][1])
+                avg_execution = 0.0 if math.isnan(val) else round(val, 3)
+            else:
+                print("PromQL query1 (avg_execution) returned empty.")
         except Exception as e:
-            avg_execution = 0.0
+            print(f"Error in avg_execution query: {e}")
 
-        """ try:
-            # can be obtained from gateway_service_count
-            query3 = "kube_deployment_status_replicas_ready{deployment='matmul'}"
-            data = prom.custom_query(query=query3)
-            replicas = int(float(data[0]['value'][1]))
-        except Exception as e:
-            replicas = 0
-            print(e) """
-
+        # 2. Get ready replicas via K8s API directly (more reliable than Prometheus)
         try:
-            # Use K8s API directly (Much more reliable!)
             deploy = scale_api.read_namespaced_deployment(name=deployment_name, namespace=namespace)
             if deploy.status.ready_replicas is not None:
                 replicas = deploy.status.ready_replicas
             else:
-                replicas = 0 # It returns None if 0 replicas are ready
+                replicas = 0
+                print("Replicas returned None (likely 0 ready pods)")
         except Exception as e:
             replicas = 0
-            print(f"Error reading replicas: {e}")
+            print(f"Error reading replicas from K8s API: {e}")
 
+        # 3. Get total requests
+        query4 = f"increase(gateway_function_invocation_total{{function_name='{deployment_name}.{namespace}'}}[30s])"
         try:
-            # total requests during the period
-            query4 = "increase(gateway_function_invocation_total{function_name='matmul.openfaas-fn'}[30s])"
             data = prom.custom_query(query=query4)
-            total = 0
-            for d in data:
-                total += int(float(d['value'][1]))
-            requests = total
-        except Exception as e:
-            requests = 0
-        print(f'requests are {requests}')
-
-        try:
-            # throughput during the period (percentage)
-            query2 = "increase(gateway_function_invocation_total{code='200', function_name='" + deployment_name + "." + namespace + "'}[30s])"
-            data = prom.custom_query(query=query2)
-            throughput = int(float(data[0]['value'][1]))
-            throughput = int(round((throughput/requests)*100, 2))
-        except ZeroDivisionError:
-            if requests == 0:
-                throughput = 100
+            if data:
+                for d in data:
+                    if 'value' in d and len(d['value']) > 1:
+                        requests += int(float(d['value'][1]))
             else:
-                throughput = 0
-        except Exception:
-            if requests == 0:
-                throughput = 100
-            else:
-                throughput = 0
-      
-
-        try:
-        # get the avg usage metrics
-            resource_list = resource_usage_api.list_namespaced_custom_object("metrics.k8s.io", "v1beta1", "openfaas-fn", "pods")
-            my_pods  = [pod['containers'][0]['usage'] for pod in resource_list['items'] if pod['metadata']['labels']['faas_function'] == deployment_name]
-            cpu = 0
-            mem = 0
-            for pods in my_pods:
-                c = pods['cpu']
-                m = pods['memory']
-                try:
-                    # converting everything in to millicores (m) 1 vCPU = 1000m
-                    if c.endswith('n'):
-                        cpu += (round(int(c.split('n')[0])/1e6, 4))
-                    elif c.endswith('u'):
-                        cpu += (round(int(c.split('u')[0])/1e3, 4))
-                    elif c.endswith('m'):
-                        cpu += (round(int(c.split('m')[0]), 4))
-                    else:
-                        cpu += 0
-                except Exception as e:
-                    cpu += 0
-                try:    
-                    # converting everything into Gi
-                    if m.endswith('Ki'):
-                        mem += (round(int(m.split('Ki')[0])/(1024*1024), 4))
-                    elif m.endswith('Mi'):
-                        mem += (round(int(m.split('Mi')[0])/1024, 4))
-                    elif m.endswith('Gi'):
-                        mem += (round(int(m.split('Gi')[0]), 4))
-                    else:
-                        mem += 0
-                except Exception as e:
-                    mem += 0
-            avg_cpu = round((cpu/len(my_pods))/self.func_cpu, 4)
-            avg_mem = round((mem/len(my_pods))/self.func_mem, 4)
-
+                print("PromQL query4 (requests) returned empty.")
         except Exception as e:
-            print('pods not available for metrics')
-            # if len(my_pods) == 0: # case where pods are unavailable
-            my_pods = 0
-            avg_cpu = 0
-            avg_mem = 0
+            print(f"Error in requests query: {e}")
             
-        # get the next observation from the environment after action
-        obs = np.array([avg_execution, throughput, requests, replicas, avg_cpu, avg_mem])
+        print(f'Requests during window: {requests}')
 
+        # 4. Get throughput (percentage of successful requests)
+        query2 = f"increase(gateway_function_invocation_total{{code='200', function_name='{deployment_name}.{namespace}'}}[30s])"
+        try:
+            data = prom.custom_query(query=query2)
+            successful_requests = 0
+            if data and 'value' in data[0] and len(data[0]['value']) > 1:
+                successful_requests = int(float(data[0]['value'][1]))
+            
+            if requests > 0:
+                throughput = int(round((successful_requests / requests) * 100, 2))
+            else:
+                throughput = 100 # Default to 100% if no requests were made
+        except Exception as e:
+            print(f"Error in throughput query: {e}")
+            throughput = 100 if requests == 0 else 0
+
+        # 5. Get Pod Resource Metrics (CPU/Memory)
+        try:
+            resource_list = resource_usage_api.list_namespaced_custom_object("metrics.k8s.io", "v1beta1", namespace, "pods")
+            
+            # Safely parse the pods dict
+            my_pods = [
+                pod['containers'][0]['usage'] 
+                for pod in resource_list.get('items', []) 
+                if pod.get('metadata', {}).get('labels', {}).get('faas_function') == deployment_name
+            ]
+            
+            cpu_total = 0
+            mem_total = 0
+            
+            if my_pods:
+                for pod_usage in my_pods:
+                    c = pod_usage.get('cpu', '0')
+                    m = pod_usage.get('memory', '0')
+                    
+                    # Parse CPU
+                    try:
+                        if c.endswith('n'): cpu_total += (round(int(c.split('n')[0])/1e6, 4))
+                        elif c.endswith('u'): cpu_total += (round(int(c.split('u')[0])/1e3, 4))
+                        elif c.endswith('m'): cpu_total += (round(int(c.split('m')[0]), 4))
+                    except Exception:
+                        pass
+                        
+                    # Parse Memory
+                    try:
+                        if m.endswith('Ki'): mem_total += (round(int(m.split('Ki')[0])/(1024*1024), 4))
+                        elif m.endswith('Mi'): mem_total += (round(int(m.split('Mi')[0])/1024, 4))
+                        elif m.endswith('Gi'): mem_total += (round(int(m.split('Gi')[0]), 4))
+                    except Exception:
+                        pass
+                
+                avg_cpu = round((cpu_total / len(my_pods)) / self.func_cpu, 4)
+                avg_mem = round((mem_total / len(my_pods)) / self.func_mem, 4)
+            else:
+                print("No pods found matching the deployment name for metrics.")
+
+        except Exception as e:
+            print(f'Error fetching pod metrics from k8s API: {e}')
+            
+        # Compile and return observation
+        obs = np.array([avg_execution, throughput, requests, replicas, avg_cpu, avg_mem])
         return obs
         
     def _write_to_board(self, obs, action, rew, info, step, episode):
