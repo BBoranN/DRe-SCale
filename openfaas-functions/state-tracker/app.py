@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 
 from pod_watcher import PodWatcher
 from exp_controller import ExpirationController
+from agent_call_service import AgentCallService
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -33,6 +34,9 @@ from exp_controller import ExpirationController
 # Since you port-forward the gateway to localhost:8080,
 # and this tracker runs on localhost:8000, we forward to 8080.
 OPENFAAS_GATEWAY = os.getenv("OPENFAAS_GATEWAY", "http://127.0.0.1:8080")
+AGENT_URL = os.getenv("AGENT_URL", "http://127.0.0.1:5000")
+AGENT_ENABLED = os.getenv("AGENT_ENABLED", "true").lower() in ("1", "true", "yes", "on")
+AGENT_TIMEOUT_SECONDS = float(os.getenv("AGENT_TIMEOUT_SECONDS", "2"))
 
 FUNCTION_NAME = os.getenv("FUNCTION_NAME", "matmul")
 FUNCTION_NAMESPACE = os.getenv("FUNCTION_NAMESPACE", "openfaas-fn")
@@ -160,6 +164,7 @@ class FunctionState:
 in_flight_counter = InFlightCounter()
 pod_watcher: PodWatcher = None
 http_client: httpx.AsyncClient = None
+agent_call_service: AgentCallService = None
 
 state_history: list[dict] = []
 state_history_lock = threading.Lock()
@@ -175,7 +180,7 @@ REJECTION_STATUS_CODES = {429, 500, 503}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global pod_watcher, http_client
+    global pod_watcher, http_client, agent_call_service
 
     # Start pod watcher
     pod_watcher = PodWatcher(
@@ -202,9 +207,21 @@ async def lifespan(app: FastAPI):
     )
     logger.info(f"Proxying to: {OPENFAAS_GATEWAY}")
 
+    agent_call_service = AgentCallService(
+        agent_url=AGENT_URL,
+        timeout_seconds=AGENT_TIMEOUT_SECONDS,
+        enabled=AGENT_ENABLED,
+    )
+    logger.info(
+        "Agent calls %s: %s",
+        "enabled" if AGENT_ENABLED else "disabled",
+        AGENT_URL,
+    )
+
     yield
 
     expiration_controller.stop()
+    await agent_call_service.close()
     pod_watcher.stop()
     await http_client.aclose()
 
@@ -249,6 +266,16 @@ async def proxy_function_call(function_name: str, request: Request):
 
     # Record now, get a handle to update later.
     entry = _record_state(state)
+
+    agent_response, agent_error = await agent_call_service.call_agent(state)
+    with state_history_lock:
+        entry["agent_response"] = agent_response
+        entry["agent_error"] = agent_error
+
+    if agent_response is not None:
+        logger.info("Agent response: %s", agent_response)
+    else:
+        logger.warning("Agent response unavailable: %s", agent_error)
 
     current_in_flight = in_flight_counter.increment()
 
