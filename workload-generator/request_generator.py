@@ -6,7 +6,7 @@ import numpy as np
 import math
 
 
-FUNCTION_URL = "http://127.0.0.1:8080/function/matmul" 
+FUNCTION_URL = "http://127.0.0.1:8000/function/matmul" 
 
 def func(a=1):
     # We insert the URL directly into the command

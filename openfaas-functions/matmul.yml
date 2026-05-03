@@ -10,7 +10,8 @@ functions:
     image: bborann/matmul:latest
     
     labels:
-      com.openfaas.scale.min: "1"
+      com.openfaas.scale.zero: "false"     # disable built-in scale-to-zero
+      com.openfaas.scale.min: "0"
       com.openfaas.scale.max: "24"
     limits:
       memory: 256Mi
@@ -22,3 +23,9 @@ functions:
       exec_timeout: '10s'
       read_timeout: '10s'
       write_timeout: '10s'
+
+environment:
+  exec_timeout: '20s'
+  read_timeout: '20s'
+  write_timeout: '20s'
+  max_inflight: '1'
