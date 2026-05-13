@@ -56,7 +56,7 @@ class Environment(gym.Env):
         self.func_mem = round((256/1024), 2) 
 
         # FIX 2: Hardcoded model name to avoid ${MODEL_NAME} crash
-        model_name = "PPO_LSTM_Run3_cpu" 
+        model_name = "PPO_LSTM_Run3_final" 
         logdir = "logs/evaluation/" + datetime.now().strftime("%Y%m%d-%H%M%S")
         
         self.file_writer = tf.summary.create_file_writer(logdir + "/" + model_name)

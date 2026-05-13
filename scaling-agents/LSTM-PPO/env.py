@@ -73,7 +73,7 @@ class Environment(gym.Env):
         self.file_writer = tf.summary.create_file_writer(logdir + "/${PPO_LSTM_Run3_cpu}")
         self.file_writer.set_as_default() 
 
-        self._reward_file = 'reward_history_PPO_LSTM_Run3_cpu.json'
+        self._reward_file = 'reward_history_PPO_LSTM_Run3_final.json'
 
     def _get_info(self):
         return {}

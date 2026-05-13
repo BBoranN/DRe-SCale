@@ -20,12 +20,8 @@ functions:
       memory: 256Mi
       cpu: 150m
     environment:
-      exec_timeout: '10s'
-      read_timeout: '10s'
-      write_timeout: '10s'
+      exec_timeout: '20s'
+      read_timeout: '20s'
+      write_timeout: '20s'
+      max_inflight: '1'
 
-environment:
-  exec_timeout: '20s'
-  read_timeout: '20s'
-  write_timeout: '20s'
-  max_inflight: '1'
