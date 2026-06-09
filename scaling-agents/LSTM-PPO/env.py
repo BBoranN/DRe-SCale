@@ -70,10 +70,10 @@ class Environment(gym.Env):
 
         # custom metrics from env
         logdir = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.file_writer = tf.summary.create_file_writer(logdir + "/${PPO_LSTM_Run3_cpu}")
+        self.file_writer = tf.summary.create_file_writer(logdir + "/${setting.env_config_setup_logdir}")
         self.file_writer.set_as_default() 
 
-        self._reward_file = 'reward_history_PPO_LSTM_Run3_final.json'
+        self._reward_file = setting.env_reward_history_file
 
     def _get_info(self):
         return {}

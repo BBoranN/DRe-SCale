@@ -4,6 +4,7 @@ import json
 import logging
 import threading
 import asyncio
+import argparse
 from dataclasses import dataclass, asdict
 from contextlib import asynccontextmanager
 
@@ -38,7 +39,26 @@ SAMPLING_WINDOW = int(os.getenv("SAMPLING_WINDOW", "30"))
 MONITOR_INTERVAL_SECONDS = float(os.getenv("MONITOR_INTERVAL_SECONDS", "0.1"))
 FUNC_CPU_MILLICORES = int(os.getenv("FUNC_CPU_MILLICORES", "150"))
 FUNC_MEM_GBI = float(os.getenv("FUNC_MEM_GBI", "0.25"))
-EXPERIMENT_LOG_DIR = os.getenv("EXPERIMENT_LOG_DIR", "logs/nsgd_const_new")
+DEFAULT_EXPERIMENT_LOG_DIR = "logs/nsgd_const_new"
+
+
+def parse_experiment_log_dir_arg() -> str | None:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--experiment-log-dir",
+        "--experiment_log_dir",
+        "--EXPERIMENT_LOG_DIR",
+        dest="experiment_log_dir",
+    )
+    args, _unknown = parser.parse_known_args()
+    return args.experiment_log_dir
+
+
+EXPERIMENT_LOG_DIR = (
+    parse_experiment_log_dir_arg()
+    or os.getenv("EXPERIMENT_LOG_DIR")
+    or DEFAULT_EXPERIMENT_LOG_DIR
+)
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),
@@ -954,7 +974,7 @@ if __name__ == "__main__":
     print()
 
     uvicorn.run(
-        "app:app",
+        "app_with_args:app",
         host="0.0.0.0",
         port=TRACKER_PORT,
         log_level=LOG_LEVEL.lower(),

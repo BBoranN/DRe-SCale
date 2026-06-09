@@ -42,12 +42,12 @@ def matmul_workload(n, iterations):
 
 # openfaas event handler function
 def handle(event, context):
-    n = 800 
+    n = 1400 
     
     # TWEAK THIS NUMBER: 
     # This controls how many times the matrices are multiplied.
     # On a 150m CPU, 10 iterations should take roughly 1 to 2 seconds.
-    iterations = 2
+    iterations = 1
     
     # Calculate latency
     result = matmul_workload(n, iterations)

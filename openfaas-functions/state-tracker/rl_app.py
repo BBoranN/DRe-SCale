@@ -55,9 +55,10 @@ MAX_HISTORY = int(os.getenv("MAX_HISTORY", "100000"))
 
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://127.0.0.1:9090")
 SAMPLING_WINDOW = int(os.getenv("SAMPLING_WINDOW", "30"))
+MONITOR_INTERVAL_SECONDS = float(os.getenv("MONITOR_INTERVAL_SECONDS", "0.1"))
 FUNC_CPU_MILLICORES = int(os.getenv("FUNC_CPU_MILLICORES", "150"))
 FUNC_MEM_GBI = float(os.getenv("FUNC_MEM_GBI", "0.25"))
-EXPERIMENT_LOG_DIR = os.getenv("EXPERIMENT_LOG_DIR", "logs/rl_eval")
+EXPERIMENT_LOG_DIR = os.getenv("EXPERIMENT_LOG_DIR", "logs/rl_last_final_train_after_6_hours_eval_last_last")
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),
@@ -80,6 +81,10 @@ class InFlightCounter:
     def __init__(self):
         self._count = 0
         self._lock = threading.Lock()
+        self._change_callback = None
+
+    def set_change_callback(self, callback):
+        self._change_callback = callback
 
     @property
     def count(self) -> int:
@@ -90,12 +95,29 @@ class InFlightCounter:
         with self._lock:
             pre = self._count
             self._count += 1
-            return pre
+            current = self._count
+        self._notify_change("increment", pre, current)
+        return pre
 
     def decrement(self) -> int:
         with self._lock:
+            previous = self._count
             self._count = max(0, self._count - 1)
-            return self._count
+            current = self._count
+        self._notify_change("decrement", previous, current)
+        return current
+
+    def _notify_change(self, event_type: str, previous: int, current: int):
+        if previous == current or not self._change_callback:
+            return
+        try:
+            self._change_callback(
+                event_type=event_type,
+                old_count=previous,
+                new_count=current,
+            )
+        except Exception as e:
+            logger.debug("In-flight change callback failed: %s", e)
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +200,17 @@ async def lifespan(app: FastAPI):
         nsgd_weights=NSGD_WEIGHTS,
         log_dir=EXPERIMENT_LOG_DIR,
         min_pods=MIN_REPLICAS,
+        monitor_interval=MONITOR_INTERVAL_SECONDS,
+    )
+    in_flight_counter.set_change_callback(
+        lambda **kwargs: metrics_collector.record_monitor_event(
+            "inflight_" + kwargs.get("event_type", "change")
+        )
+    )
+    pod_watcher.set_change_callback(
+        lambda **kwargs: metrics_collector.record_monitor_event(
+            "pod_" + kwargs.get("event_type", "change").lower()
+        )
     )
     metrics_collector.start()
 
@@ -303,7 +336,7 @@ async def proxy_function_call(function_name: str, request: Request):
                 + w["w_busy"] * state.busy
                 + w["w_init"] * (state.init_free + state.init_reserved)
                 + w["w_reserved"] * state.init_reserved
-                + (w["w_rej"] if state.saturated_at_arrival else 0)
+                + (w["w_rej"] if is_rejected else 0)
             )
 
             # Same schema as NSGD logs. Theta and algorithm fields are
@@ -524,6 +557,7 @@ async def metrics_summary():
         "csv_files": {
             "samples": os.path.join(EXPERIMENT_LOG_DIR, "samples.csv"),
             "requests": os.path.join(EXPERIMENT_LOG_DIR, "request_log.csv"),
+            "monitor": os.path.join(EXPERIMENT_LOG_DIR, "monitor.csv"),
         },
         "proxy_totals": {
             "requests": total_proxy_reqs,
@@ -570,6 +604,7 @@ if __name__ == "__main__":
     print("CSV files (written automatically, same schema as NSGD logs):")
     print(f"  {EXPERIMENT_LOG_DIR}/samples.csv       (every {SAMPLING_WINDOW}s)")
     print(f"  {EXPERIMENT_LOG_DIR}/request_log.csv   (every request)")
+    print(f"  {EXPERIMENT_LOG_DIR}/monitor.csv       (every {MONITOR_INTERVAL_SECONDS}s)")
     print()
     print("Run the LSTM-PPO RL agent (env.py) separately. Point its")
     print("workload generator at this proxy:")

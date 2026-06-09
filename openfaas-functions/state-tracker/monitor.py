@@ -40,7 +40,7 @@ def setup_log_directory():
     os.makedirs(full_dir_path, exist_ok=True)
     
     # Return the exact file path where the CSV should be written
-    return os.path.join(full_dir_path, "monitor.csv")
+    return os.path.join(full_dir_path, "every_function_call.csv")
 
 def log_to_csv(data, filename):
     """Writes the current state data as a row in a CSV file."""

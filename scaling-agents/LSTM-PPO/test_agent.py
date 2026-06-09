@@ -18,7 +18,7 @@ if not os.path.exists(logdir):
 
 
 # Load the model
-model = RecurrentPPO.load(path='models/PPO_LSTM_Run_final/6000.zip',
+model = RecurrentPPO.load(path=setting.test_agent_path,
                           env=en,
                           custom_objects={'clip_range': 0.2,'lr_schedule': 1})
 

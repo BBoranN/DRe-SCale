@@ -55,6 +55,7 @@ class PodWatcher:
         self._lock = threading.Lock()
         self._thread: threading.Thread = None
         self._stop_event = threading.Event()
+        self._change_callback = None
 
         # Try in-cluster config first, fall back to local kubeconfig
         try:
@@ -75,6 +76,15 @@ class PodWatcher:
 
         # OpenFaaS labels function pods with faas_function=<name>
         self._label_selector = f"faas_function={function_name}"
+
+    def set_change_callback(self, callback):
+        """
+        Register a callback called after ready/not-ready/total counts change.
+
+        The callback is invoked outside the pod cache lock with keyword
+        arguments: event_type, pod_name, old_counts, new_counts.
+        """
+        self._change_callback = callback
 
     def start(self):
         """Populate cache with current pods, then start watching."""
@@ -101,13 +111,16 @@ class PodWatcher:
         just reads from the in-memory cache.
         """
         with self._lock:
-            ready = sum(1 for p in self._pods.values() if p.ready)
-            not_ready = sum(1 for p in self._pods.values() if not p.ready)
-            return {
-                "ready": ready,
-                "not_ready": not_ready,
-                "total": ready + not_ready,
-            }
+            return self._counts_locked()
+
+    def _counts_locked(self) -> dict:
+        ready = sum(1 for p in self._pods.values() if p.ready)
+        not_ready = sum(1 for p in self._pods.values() if not p.ready)
+        return {
+            "ready": ready,
+            "not_ready": not_ready,
+            "total": ready + not_ready,
+        }
 
     def get_pod_details(self) -> list[dict]:
         """Detailed pod info for debugging."""
@@ -215,8 +228,11 @@ class PodWatcher:
             return
 
         info = self._parse_pod(pod_obj)
+        old_counts = None
+        new_counts = None
 
         with self._lock:
+            old_counts = self._counts_locked()
             if event_type == "DELETED" or info is None:
                 # info is None when pod is Terminating or in a terminal phase.
                 # Either way, remove it from our active cache.
@@ -245,6 +261,19 @@ class PodWatcher:
                     info.ready_at = old.ready_at
 
                 self._pods[info.name] = info
+
+            new_counts = self._counts_locked()
+
+        if old_counts != new_counts and self._change_callback:
+            try:
+                self._change_callback(
+                    event_type=event_type,
+                    pod_name=pod_name,
+                    old_counts=old_counts,
+                    new_counts=new_counts,
+                )
+            except Exception as e:
+                logger.debug("Pod change callback failed: %s", e)
 
     # ------------------------------------------------------------------
     # Pod parsing
