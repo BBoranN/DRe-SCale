@@ -1,9 +1,0 @@
-{
-    "experimentName": "PPO_LSTM_Run_trial_0",
-    "logFileName": "PPO_LSTM_Run_trial_0",
-    "rewardFileName": "reward_history_PPO_LSTM_Run_trial_0",
-    "testAgentPath": "models/PPO_LSTM_Run_trial_0/6000.zip",
-    "testEnvironmentModelName":"PPO_LSTM_Run_trial_0",
-    "ppo_lstm_agent_models_dir": "models/PPO_LSTM_Run_trial_0",
-    "ppo_lstm_test_agent_models_dir": "models/evaluation/PPO_LSTM_Run_trial_0"
-}
